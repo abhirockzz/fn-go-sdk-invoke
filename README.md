@@ -6,25 +6,28 @@ This example demonstrates how to invoke a function on Oracle Functions using (pr
 
 To be specifc, it shows how you can invoke a function by its name given that you also provide the application name (to which the function belongs), the OCI compartment (for which your Oracle Functions service is configured) and the OCID of your tenancy
 
-`functions.FunctionsClient` exposes Oracle Functions capabilities, including invoking a function. For function invocation to work, both the function OCID and its invoke endpoint are required
+OCI SDK exposes two endpoints for Oracle Functions
 
-We start off with the following inputs - function name, application name, the compartment name and the tenant OCID
+- `functions.FunctionsManagementClient` - for CRUD operations e.g. creating applications, listing functions etc.
+- `functions.FunctionsInvokeClient` - only required for invoking a function
+
+The `invokeFunction` function in `functions.FunctionsInvokeClient` requires the function OCID and the function invoke endpoint which needs to be extracted using the following - function name, application name, the compartment name and the tenant OCID. This involves multiple API calls
 
 - The first step extracts the Compartment OCID from the name using `ListCompartments` function in `identity.IdentityClient` - it looks for compartments in the tenancy and matches the one with the provided name
-- The compartment OCID is then used to find the Application OCID from the name using `ListApplications` function exposed by `functions.FunctionsClient`
-- Once we have the application OCID, the function information (in the form of a `functions.FunctionSummary` object) is extracted using `ListFunctions` - this allows us to get both the function OCID as well as its invoke endpoint via a single API call
+- The compartment OCID is then used to find the Application OCID from the name using `ListApplications` function exposed by `functions.FunctionsManagementClient`
+- Once we have the application OCID, the function information (in the form of a `functions.FunctionSummary` object) is extracted using `ListFunctions` in `functions.FunctionsManagementClient` - this allows us to get both the function OCID as well as its invoke endpoint via a single API call
 
 The key thing to note here is that the function ID and its invoke endpoint will not change unless you delete the function (or the application it's a part of). As a result you do not need to repeat the above mentioned flow of API calls - the funtion ID and its invoke endpoint can be derived once and then **cached** in-memory (e.g. in a `map`) or an external data store
 
 Now that we have the function OCID and invoke enpoint at our disposal
 
 - we build `functions.InvokeFunctionRequest` with the function OCID and the (optional) payload which we want to send to our function, and,
-- point the `functions.FunctionsClient` towards the invoke endpoint 
+- point the `functions.FunctionsInvokeClient` towards the invoke endpoint 
 - finally, we call `InvokeFunction` and extract the response from `invokeFunctionResp.InvokeFunctionResponse`
 
 ### Authentication
 
-The client program needs to authenticate to OCI before being able to make service calls. The standard OCI authenitcation is used, which accepts the following inputs (details below) - tenant OCID, user OCID, fingerprint, private key and passphrase (optional). These details are required to instantiate a `common.ConfigurationProvider` using `common.NewRawConfigurationProvider` method and subsequently used by the service client objects (`functions.FunctionsClient`, `identity.IdentityClient`)
+The client program needs to authenticate to OCI before being able to make service calls. The standard OCI authenitcation is used, which accepts the following inputs (details below) - tenant OCID, user OCID, fingerprint, private key and passphrase (optional). These details are required to instantiate a `common.ConfigurationProvider` using `common.NewRawConfigurationProvider` method and subsequently used by the service client objects (`functions.FunctionsInvokeClient`, `functions.FunctionsManagementClient`, `identity.IdentityClient`)
 
 This example does not assume the presence of an OCI config file on the machine from where this is being executed. However, if you have one present as per the standard OCI practices i.e. a config file in your home directory, you can use `common.DefaultConfigProvider` for convenience
 
