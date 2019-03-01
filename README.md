@@ -64,8 +64,6 @@ Create a function using [Go Hello World Function](https://github.com/abhirockzz/
 
 You need to add the OCI Go SDK to your `GOPATH`
 
-`export GOPATH=<your GOPATH>` e.g. `export GOPATH=/Users/foobar/go`
-
 1. Back up your existing installation of OCI Go SDK and remove it from your `GOPATH`
 
 2. Download and unzip the preview version of the OCI Go SDK
