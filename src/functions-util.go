@@ -1,78 +1,134 @@
 package main
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
+	"io/ioutil"
 
 	"github.com/oracle/oci-go-sdk/common"
 	"github.com/oracle/oci-go-sdk/functions"
 	"github.com/oracle/oci-go-sdk/identity"
 )
 
-//Returns info for a function given its name and the application it belongs to
-func getFunction(compartmentName, appName, functionName, tenantOCID string) (functions.FunctionSummary, error) {
-	fmt.Println("Finding info for function " + functionName + " in app " + appName + " belonging to compartment " + compartmentName + " within tenancy " + tenantOCID)
-	appOCID, err := getApplicationOCID(appName, compartmentName, tenantOCID)
+//Contains helper methods for invoking a function
+type functionsUtil struct {
+	tenantOCID            string
+	functionsInvokeClient functions.FunctionsInvokeClient
+	functionsMgtClient    functions.FunctionsManagementClient
+	identityClient        identity.IdentityClient
+}
+
+//Initializes required clients for Functions and Identity
+func newFunctionsUtil(tenantOCID, userOCID, region, fingerprint, privateKeyLocation, privateKeyPassphrase string) functionsUtil {
+	var err error
+
+	fmt.Println("Reading private key", privateKeyLocation)
+	privateKey, err := ioutil.ReadFile(privateKeyLocation)
 	if err != nil {
-		//fmt.Println("Could not list applications due to", err.Error())
-		return functions.FunctionSummary{}, err
+		panic("Unable to read private key file contents from " + privateKeyLocation + " due to " + err.Error())
 	}
-	listFunctionsRequest := functions.ListFunctionsRequest{ApplicationId: common.String(appOCID), DisplayName: common.String(functionName)}
+
+	//instantiate required clients
+	configProvider := common.NewRawConfigurationProvider(tenantOCID, userOCID, region, fingerprint, string(privateKey), common.String(privateKeyPassphrase))
+	identityClient, err = identity.NewIdentityClientWithConfigurationProvider(configProvider)
+	if err != nil {
+		panic("Could not instantiate Identity client - " + err.Error())
+	}
+
+	functionsInvokeClient, err = functions.NewFunctionsInvokeClientWithConfigurationProvider(configProvider)
+	if err != nil {
+		panic("Could not instantiate Functions Invoke client - " + err.Error())
+	}
+
+	functionsMgtClient, err = functions.NewFunctionsManagementClientWithConfigurationProvider(configProvider)
+	if err != nil {
+		panic("Could not instantiate Functions Management client - " + err.Error())
+	}
+	functionsMgtClient.SetRegion("us-phoenix-1") //Functions available only in phoenix during LA
+	return functionsUtil{tenantOCID, functionsInvokeClient, functionsMgtClient, identityClient}
+}
+
+//Invokes a function
+func (util functionsUtil) invokeFunction(function functions.FunctionSummary, payload string) {
+	//client needs to pointed to the unique (invoke) endpoint specific to a function
+	functionsInvokeClient.Host = *function.InvokeEndpoint
+
+	fmt.Println("Invoking function endpoint " + functionsInvokeClient.Host + " with payload " + payload)
+
+	functionPayload := ioutil.NopCloser(bytes.NewReader([]byte(payload)))
+	//functionPayload, _ := os.Open("/home/foo/cat.jpeg")
+	//defer functionPayload.Close()
+	invokeFunctionReq := functions.InvokeFunctionRequest{FunctionId: function.Id, InvokeFunctionBody: functionPayload}
+
+	invokeFunctionResp, err := functionsInvokeClient.InvokeFunction(context.Background(), invokeFunctionReq)
+	if err != nil {
+		fmt.Println("Function invocation failed due to", err.Error())
+		return
+	}
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(invokeFunctionResp.Content)
+	functionResponse := buf.String()
+
+	fmt.Println("Function response", functionResponse)
+}
+
+//Returns details for a function given its name, the details of the application it belongs to. This is an expensive operation and the results should be cached.
+func (util functionsUtil) getFunction(functionName string, application functions.ApplicationSummary) (*functions.FunctionSummary, error) {
+	fmt.Println("Finding details for function " + functionName + " in application " + *application.DisplayName)
+
+	listFunctionsRequest := functions.ListFunctionsRequest{ApplicationId: application.Id, DisplayName: common.String(functionName)}
 	listFunctionsResp, err := functionsMgtClient.ListFunctions(context.Background(), listFunctionsRequest)
 	if err != nil {
 		//fmt.Println("Could not list functions due to", err.Error())
-		return functions.FunctionSummary{}, err
+		return nil, err
 	}
 
 	if len(listFunctionsResp.Items) == 0 {
-		return functions.FunctionSummary{}, errors.New("Could not find function " + functionName + " in app " + appName)
+		return nil, errors.New("Could not find function " + functionName + " in application " + *application.DisplayName)
 	}
-
-	return listFunctionsResp.Items[0], nil
+	fmt.Println("Found details for function", functionName)
+	return &listFunctionsResp.Items[0], nil
 }
 
-//Returns compartment OCID given compartment name and tenancy OCID
-func getCompartmentOCID(compartmentName string, tenantOCID string) (string, error) {
-	fmt.Println("Finding OCID for compartment " + compartmentName + " in tenancy " + tenantOCID)
+//Returns Application details, given its name and Compartment details
+func (util functionsUtil) getApplication(appName string, compartment identity.Compartment) (*functions.ApplicationSummary, error) {
+	fmt.Println("Finding details for application " + appName + " in compartment " + *compartment.Name)
 
-	//To get a full list of all compartments and subcompartments in the tenancy (root compartment), set the parameter `compartmentIdInSubtree` to true and `accessLevel` to ANY.
-	//details - https://godoc.org/github.com/oracle/oci-go-sdk/identity#IdentityClient.ListCompartments
-	listCompartmentsRequest := identity.ListCompartmentsRequest{CompartmentId: common.String(tenantOCID), CompartmentIdInSubtree: common.Bool(true), AccessLevel: identity.ListCompartmentsAccessLevelAny}
-	listCompartmentsResp, err := identityClient.ListCompartments(context.Background(), listCompartmentsRequest)
-
-	if err != nil {
-		return "", err
-	}
-	for _, compartment := range listCompartmentsResp.Items {
-		if *compartment.Name == compartmentName {
-			fmt.Println("OCID for compartment "+compartmentName, *compartment.Id)
-			return *compartment.Id, nil
-		}
-	}
-
-	return "", errors.New("Could not find OCID for compartment " + compartmentName + " in tenancy " + tenantOCID)
-}
-
-//Returns app OCID, provided the name of the app and its specific compartment and tenancy
-func getApplicationOCID(appName, compartmentName, tenantOCID string) (string, error) {
-	fmt.Println("Finding OCID for application " + appName + " in compartmentName " + compartmentName + " within tenancy " + tenantOCID)
-	compartmentOCID, err := getCompartmentOCID(compartmentName, tenantOCID)
-	if err != nil {
-		//fmt.Println("Could not list compartments due to", err.Error())
-		return "", err
-	}
-	listAppsRequest := functions.ListApplicationsRequest{CompartmentId: common.String(compartmentOCID), DisplayName: common.String(appName)}
+	listAppsRequest := functions.ListApplicationsRequest{CompartmentId: compartment.Id, DisplayName: common.String(appName)}
 	listAppsResp, err := functionsMgtClient.ListApplications(context.Background(), listAppsRequest)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	if len(listAppsResp.Items) == 0 {
-		return "", errors.New("Could not find OCID for application " + appName + " in compartmentName " + compartmentName + " within tenancy " + tenantOCID)
+		return nil, errors.New("Could not find application " + appName + " in compartment " + *compartment.Name + " within tenancy " + util.tenantOCID)
 	}
 
-	appOCID := listAppsResp.Items[0].Id
-	fmt.Println("OCID for application "+appName, *appOCID)
-	return *appOCID, nil
+	app := listAppsResp.Items[0]
+	fmt.Println("Found details for application", appName)
+	return &app, nil
+}
+
+//Returns Compartment details given its name. Also uses the tenancy OCID info.
+func (util functionsUtil) getCompartment(compartmentName string) (*identity.Compartment, error) {
+	fmt.Println("Finding details for compartment " + compartmentName + " in tenancy " + util.tenantOCID)
+
+	//To get a full list of all compartments and subcompartments in the tenancy (root compartment), set the parameter `compartmentIdInSubtree` to true and `accessLevel` to ANY.
+	//details - https://godoc.org/github.com/oracle/oci-go-sdk/identity#IdentityClient.ListCompartments
+	listCompartmentsRequest := identity.ListCompartmentsRequest{CompartmentId: common.String(util.tenantOCID), CompartmentIdInSubtree: common.Bool(true), AccessLevel: identity.ListCompartmentsAccessLevelAny}
+	listCompartmentsResp, err := identityClient.ListCompartments(context.Background(), listCompartmentsRequest)
+
+	if err != nil {
+		return nil, err
+	}
+	for _, compartment := range listCompartmentsResp.Items {
+		if *compartment.Name == compartmentName {
+			fmt.Println("Found details for compartment", compartmentName)
+			return &compartment, nil
+		}
+	}
+
+	return nil, errors.New("Could not find details for compartment " + compartmentName + " in tenancy " + util.tenantOCID)
 }

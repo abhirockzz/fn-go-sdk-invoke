@@ -2,11 +2,8 @@ package main
 
 import (
 	"flag"
-	"fmt"
-	"io/ioutil"
 	"os"
 
-	"github.com/oracle/oci-go-sdk/common"
 	"github.com/oracle/oci-go-sdk/functions"
 	"github.com/oracle/oci-go-sdk/identity"
 )
@@ -34,40 +31,20 @@ func main() {
 	flag.Parse()
 	checkMandatoryFlags()
 
-	var err error
-	fmt.Println("Reading private key", privateKeyLocation)
-	privateKey, err := ioutil.ReadFile(privateKeyLocation)
-	if err != nil {
-		panic("Unable to read private key file contents from " + privateKeyLocation + " due to " + err.Error())
-	}
-
-	//instantiate required clients
-	configProvider := common.NewRawConfigurationProvider(tenantOCID, userOCID, region, fingerprint, string(privateKey), common.String(privateKeyPassphrase))
-	identityClient, err = identity.NewIdentityClientWithConfigurationProvider(configProvider)
-	if err != nil {
-		panic("Could not instantiate Identity client - " + err.Error())
-	}
-
-	functionsInvokeClient, err = functions.NewFunctionsInvokeClientWithConfigurationProvider(configProvider)
-	if err != nil {
-		panic("Could not instantiate Functions Invoke client - " + err.Error())
-	}
-
-	functionsMgtClient, err = functions.NewFunctionsManagementClientWithConfigurationProvider(configProvider)
-	if err != nil {
-		panic("Could not instantiate Functions Management client - " + err.Error())
-	}
-	functionsMgtClient.SetRegion("us-phoenix-1") //Functions available only in phoenix during LA
-
-	function, err := getFunction(*compartmentName, *appName, *funcName, tenantOCID)
-
+	functionsUtil := newFunctionsUtil(tenantOCID, userOCID, region, fingerprint, privateKeyLocation, privateKeyPassphrase)
+	compartment, err := functionsUtil.getCompartment(*compartmentName)
 	if err != nil {
 		panic(err)
 	}
-	functionID := function.Id
-	invokeEndpoint := function.InvokeEndpoint
-	//invoke the function
-	invokeFunction(*functionID, *invokeEndpoint, *invokePayload)
+	application, err := functionsUtil.getApplication(*appName, *compartment)
+	if err != nil {
+		panic(err)
+	}
+	function, err := functionsUtil.getFunction(*funcName, *application)
+	if err != nil {
+		panic(err)
+	}
+	functionsUtil.invokeFunction(*function, *invokePayload)
 }
 
 func getEnvVarValue(varName string) string {
