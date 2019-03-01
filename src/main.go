@@ -17,7 +17,7 @@ func main() {
 	//read environment variables
 	tenantOCID := getEnvVarValue("TENANT_OCID")
 	userOCID := getEnvVarValue("USER_OCID")
-	region := "us-phoenix-1"
+	region := "us-phoenix-1" //Functions available only in phoenix during LA
 	fingerprint := getEnvVarValue("PUBLIC_KEY_FINGERPRINT")
 	privateKeyLocation := getEnvVarValue("PRIVATE_KEY_LOCATION")
 	privateKeyPassphrase := os.Getenv("PASSPHRASE")

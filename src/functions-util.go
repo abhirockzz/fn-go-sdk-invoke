@@ -46,7 +46,7 @@ func newFunctionsUtil(tenantOCID, userOCID, region, fingerprint, privateKeyLocat
 	if err != nil {
 		panic("Could not instantiate Functions Management client - " + err.Error())
 	}
-	functionsMgtClient.SetRegion("us-phoenix-1") //Functions available only in phoenix during LA
+	functionsMgtClient.SetRegion(region)
 	return functionsUtil{tenantOCID, functionsInvokeClient, functionsMgtClient, identityClient}
 }
 

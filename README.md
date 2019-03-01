@@ -33,7 +33,7 @@ that capture the steps required to navigate the OCI object model
   The result is a `functions.FunctionSummary` object which provides the function ID, name,
   and invoke endpoint
 
-The key thing to note here is that the function ID and its invoke endpoint will not change unless you delete the function (or the application it's a part of). As a result you do not need to repeat the above mentioned flow of API calls - the funtion ID and its invoke endpoint can be derived once and then **cached** in-memory (e.g. in a `map`) or an external data store
+> The key thing to note here is that the function ID and its invoke endpoint will not change unless you delete the function (or the application it's a part of). As a result you do not need to repeat the above mentioned flow of API calls - the funtion ID and its invoke endpoint can be derived once and then **cached** in-memory (e.g. in a `map`) or an external data store
 
 Once we have a `functions.FunctionSummary` (containing function OCID and invoke enpdoint)
 at our disposal we can use the `invokeFunction(function,payload)` function in `FunctionsUtils` which:
