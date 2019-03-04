@@ -61,8 +61,8 @@ func (util functionsUtil) invokeFunction(function functions.FunctionSummary, pay
 	fmt.Println("Invoking function endpoint " + util.functionsInvokeClient.Host + " with payload " + payload)
 
 	functionPayload := ioutil.NopCloser(bytes.NewReader([]byte(payload)))
-	//functionPayload, _ := os.Open("/home/foo/cat.jpeg")
-	//defer functionPayload.Close()
+	//functionPayload, _ := os.Open("/home/foo/cat.jpeg") - example for a binary request. file name can be passed as payload
+	//defer functionPayload.Close() - don't forget to clean up!
 	invokeFunctionReq := functions.InvokeFunctionRequest{FunctionId: function.Id, InvokeFunctionBody: functionPayload}
 
 	invokeFunctionResp, err := util.functionsInvokeClient.InvokeFunction(context.Background(), invokeFunctionReq)
