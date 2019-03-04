@@ -3,14 +3,7 @@ package main
 import (
 	"flag"
 	"os"
-
-	"github.com/oracle/oci-go-sdk/functions"
-	"github.com/oracle/oci-go-sdk/identity"
 )
-
-var identityClient identity.IdentityClient
-var functionsInvokeClient functions.FunctionsInvokeClient
-var functionsMgtClient functions.FunctionsManagementClient
 
 func main() {
 

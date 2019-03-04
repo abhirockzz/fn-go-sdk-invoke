@@ -23,6 +23,9 @@ type functionsUtil struct {
 //Initializes required clients for Functions and Identity
 func newFunctionsUtil(tenantOCID, userOCID, region, fingerprint, privateKeyLocation, privateKeyPassphrase string) functionsUtil {
 	var err error
+	var identityClient identity.IdentityClient
+	var functionsInvokeClient functions.FunctionsInvokeClient
+	var functionsMgtClient functions.FunctionsManagementClient
 
 	fmt.Println("Reading private key", privateKeyLocation)
 	privateKey, err := ioutil.ReadFile(privateKeyLocation)
@@ -53,16 +56,16 @@ func newFunctionsUtil(tenantOCID, userOCID, region, fingerprint, privateKeyLocat
 //Invokes a function
 func (util functionsUtil) invokeFunction(function functions.FunctionSummary, payload string) {
 	//client needs to pointed to the unique (invoke) endpoint specific to a function
-	functionsInvokeClient.Host = *function.InvokeEndpoint
+	util.functionsInvokeClient.Host = *function.InvokeEndpoint
 
-	fmt.Println("Invoking function endpoint " + functionsInvokeClient.Host + " with payload " + payload)
+	fmt.Println("Invoking function endpoint " + util.functionsInvokeClient.Host + " with payload " + payload)
 
 	functionPayload := ioutil.NopCloser(bytes.NewReader([]byte(payload)))
 	//functionPayload, _ := os.Open("/home/foo/cat.jpeg")
 	//defer functionPayload.Close()
 	invokeFunctionReq := functions.InvokeFunctionRequest{FunctionId: function.Id, InvokeFunctionBody: functionPayload}
 
-	invokeFunctionResp, err := functionsInvokeClient.InvokeFunction(context.Background(), invokeFunctionReq)
+	invokeFunctionResp, err := util.functionsInvokeClient.InvokeFunction(context.Background(), invokeFunctionReq)
 	if err != nil {
 		fmt.Println("Function invocation failed due to", err.Error())
 		return
@@ -79,7 +82,7 @@ func (util functionsUtil) getFunction(functionName string, application functions
 	fmt.Println("Finding details for function " + functionName + " in application " + *application.DisplayName)
 
 	listFunctionsRequest := functions.ListFunctionsRequest{ApplicationId: application.Id, DisplayName: common.String(functionName)}
-	listFunctionsResp, err := functionsMgtClient.ListFunctions(context.Background(), listFunctionsRequest)
+	listFunctionsResp, err := util.functionsMgtClient.ListFunctions(context.Background(), listFunctionsRequest)
 	if err != nil {
 		//fmt.Println("Could not list functions due to", err.Error())
 		return nil, err
@@ -97,7 +100,7 @@ func (util functionsUtil) getApplication(appName string, compartment identity.Co
 	fmt.Println("Finding details for application " + appName + " in compartment " + *compartment.Name)
 
 	listAppsRequest := functions.ListApplicationsRequest{CompartmentId: compartment.Id, DisplayName: common.String(appName)}
-	listAppsResp, err := functionsMgtClient.ListApplications(context.Background(), listAppsRequest)
+	listAppsResp, err := util.functionsMgtClient.ListApplications(context.Background(), listAppsRequest)
 	if err != nil {
 		return nil, err
 	}
@@ -118,7 +121,7 @@ func (util functionsUtil) getCompartment(compartmentName string) (*identity.Comp
 	//To get a full list of all compartments and subcompartments in the tenancy (root compartment), set the parameter `compartmentIdInSubtree` to true and `accessLevel` to ANY.
 	//details - https://godoc.org/github.com/oracle/oci-go-sdk/identity#IdentityClient.ListCompartments
 	listCompartmentsRequest := identity.ListCompartmentsRequest{CompartmentId: common.String(util.tenantOCID), CompartmentIdInSubtree: common.Bool(true), AccessLevel: identity.ListCompartmentsAccessLevelAny}
-	listCompartmentsResp, err := identityClient.ListCompartments(context.Background(), listCompartmentsRequest)
+	listCompartmentsResp, err := util.identityClient.ListCompartments(context.Background(), listCompartmentsRequest)
 
 	if err != nil {
 		return nil, err
