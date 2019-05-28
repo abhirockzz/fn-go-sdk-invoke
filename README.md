@@ -64,15 +64,19 @@ Create a function using [Go Hello World Function](https://github.com/abhirockzz/
 
 You need to add the OCI Go SDK to your `GOPATH`
 
+Set `GOPATH` environment variable
+
+    export GOPATH=<YOUR_GOPATH>
+
 1. Back up your existing installation of OCI Go SDK and remove it from your `GOPATH`
 
 2. Download and unzip the preview version of the OCI Go SDK
 
-`unzip oci-go-sdk-preview@445e601f408.zip`
+        unzip oci-go-sdk-preview@35505cb3d6a.zip
 
 3. Copy the preview SDK to your `GOPATH`
 
-`cp -R oci-go-sdk-preview@445e601f408/ $GOPATH/src/github.com/oracle/oci-go-sdk`
+        cp -R oci-go-sdk-preview@35505cb3d6a/ $GOPATH/src/github.com/oracle/oci-go-sdk
 
 ### Set environment variables
 
